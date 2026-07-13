@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Кузница — Друиды с пениесами</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --bg: #120e0c;
+    --surface: #1c1613;
+    --surface-2: #241c18;
+    --ember: #ff7a3c;
+    --ember-dim: #b8531f;
+    --steel: #8fb4c2;
+    --danger: #d64a3a;
+    --gold: #e8c87a;
+    --text: #ede4d8;
+    --text-dim: #a99d90;
+    --line: #33281f;
+    --safe: #6fae8a;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{ animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:
+      radial-gradient(ellipse 700px 500px at 50% -10%, rgba(255,122,60,0.10), transparent 60%),
+      radial-gradient(ellipse 900px 600px at 50% 110%, rgba(255,90,30,0.06), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 32px 16px 64px;
+  }
+  .wrap{ max-width: 960px; margin: 0 auto; }
+
+  header{ text-align:center; margin-bottom: 28px; }
+  .eyebrow{
+    font-family:'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.35em;
+    font-size: 11px; color: var(--ember); margin-bottom: 10px; font-weight:600;
+  }
+  h1{
+    font-family:'Cinzel', serif; font-weight:900; font-size: clamp(28px, 5vw, 42px);
+    margin:0; letter-spacing: 0.02em;
+    background: linear-gradient(180deg, #fff2e4, var(--ember) 90%);
+    -webkit-background-clip: text; background-clip:text; color:transparent;
+  }
+  .sub{ color: var(--text-dim); font-size: 14px; margin-top: 8px; }
+
+  /* resource bar */
+  .resources{
+    display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin: 22px 0 30px;
+  }
+  .res-chip{
+    display:flex; align-items:center; gap:8px;
+    background: var(--surface); border: 1px solid var(--line);
+    padding: 8px 14px; border-radius: 999px; font-size: 13px; font-weight:600;
+  }
+  .res-chip .ic{ font-size:15px; }
+  .res-chip .amt{ font-family:'Oswald', sans-serif; color: var(--gold); }
+  .res-chip.stone .amt{ color: var(--steel); }
+  .res-chip.rare .amt{ color: var(--ember); }
+  .res-chip.scroll .amt{ color: var(--safe); }
+
+  /* forge panel */
+  .forge{
+    background: linear-gradient(180deg, var(--surface), var(--surface-2));
+    border: 1px solid var(--line); border-radius: 18px;
+    padding: 36px 28px; text-align:center; position:relative; overflow:hidden;
+    box-shadow: 0 30px 60px -30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.02);
+  }
+  .item-stage{
+    display:flex; flex-direction:column; align-items:center; gap:14px; margin-bottom: 8px;
+  }
+  .item-visual{ width: 140px; height:140px; position:relative; }
+  .item-visual svg{ width:100%; height:100%; filter: drop-shadow(0 0 14px var(--glow-color, transparent)); transition: filter 0.4s; }
+  .item-visual.crack svg{ animation: shake 0.4s; }
+  .item-visual.shatter svg{ animation: shatter 0.55s forwards; }
+  @keyframes shake{
+    10%,90%{ transform: translateX(-2px); }
+    20%,80%{ transform: translateX(3px); }
+    30%,50%,70%{ transform: translateX(-5px); }
+    40%,60%{ transform: translateX(5px); }
+  }
+  @keyframes shatter{
+    0%{ transform: scale(1) rotate(0); opacity:1; }
+    40%{ transform: scale(1.08) rotate(-3deg); }
+    100%{ transform: scale(0.3) rotate(12deg); opacity:0; }
+  }
+  .item-visual.pulse svg{ animation: pulse 0.7s; }
+  @keyframes pulse{
+    0%{ transform: scale(1); }
+    35%{ transform: scale(1.14); }
+    100%{ transform: scale(1); }
+  }
+
+  .level-badge{
+    font-family:'Oswald', sans-serif; font-weight:700; font-size: 34px;
+    color: var(--text); letter-spacing: 0.02em;
+  }
+  .level-badge .plus{ color: var(--ember); }
+  .item-name{ color: var(--text-dim); font-size: 13px; letter-spacing:0.08em; text-transform:uppercase; }
+
+  .chance-row{
+    display:flex; justify-content:center; align-items:baseline; gap:8px; margin: 18px 0 4px;
+    font-family:'Oswald', sans-serif;
+  }
+  .chance-row .val{ font-size: 26px; font-weight:700; color: var(--gold); }
+  .chance-row .lbl{ font-size: 12px; color: var(--text-dim); text-transform:uppercase; letter-spacing:0.12em; }
+  .bar{ height:8px; border-radius:999px; background: #000; border:1px solid var(--line); overflow:hidden; max-width:360px; margin:0 auto 26px; }
+  .bar-fill{ height:100%; background: linear-gradient(90deg, var(--ember-dim), var(--ember)); transition: width 0.3s; }
+
+  .max-note{ color: var(--safe); font-weight:600; margin-bottom:20px; }
+
+  /* methods */
+  .methods{ display:grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap:12px; text-align:left; margin-bottom: 20px; }
+  .method{
+    background: rgba(0,0,0,0.2); border:1px solid var(--line); border-radius:12px; padding:14px 16px;
+    cursor:pointer; transition: border-color 0.2s, transform 0.15s, background 0.2s;
+  }
+  .method:hover{ border-color: var(--ember-dim); transform: translateY(-2px); }
+  .method:focus-visible{ outline: 2px solid var(--ember); outline-offset:2px; }
+  .method.selected{ border-color: var(--ember); background: rgba(255,122,60,0.08); }
+  .method .m-name{ font-family:'Oswald',sans-serif; font-weight:600; font-size:14px; display:flex; justify-content:space-between; align-items:center; }
+  .method .m-tag{ font-size:10px; padding:2px 7px; border-radius:999px; text-transform:uppercase; letter-spacing:0.06em; font-weight:700; }
+  .m-tag.safe{ background: rgba(111,174,138,0.18); color: var(--safe); }
+  .m-tag.standard{ background: rgba(143,180,194,0.18); color: var(--steel); }
+  .m-tag.risky{ background: rgba(255,122,60,0.18); color: var(--ember); }
+  .m-tag.extreme{ background: rgba(214,74,58,0.2); color: var(--danger); }
+  .method .m-desc{ font-size:12px; color: var(--text-dim); margin: 8px 0 10px; line-height:1.4; }
+  .method .m-cost{ font-size:11px; color: var(--text-dim); display:flex; gap:8px; flex-wrap:wrap; }
+  .method .m-cost span{ background: rgba(255,255,255,0.04); padding:2px 6px; border-radius:6px; }
+
+  .scroll-toggle{
+    display:flex; align-items:center; gap:8px; font-size:13px; color: var(--text-dim);
+    justify-content:center; margin-bottom:18px; min-height: 20px;
+  }
+  .scroll-toggle input{ accent-color: var(--safe); width:16px; height:16px; }
+  .scroll-toggle.hidden{ visibility:hidden; }
+
+  .attempt-btn{
+    font-family:'Oswald', sans-serif; font-weight:700; font-size:16px; letter-spacing:0.04em;
+    background: linear-gradient(180deg, var(--ember), var(--ember-dim));
+    color:#1a0e06; border:none; padding:14px 40px; border-radius:10px; cursor:pointer;
+    text-transform:uppercase; box-shadow: 0 10px 24px -10px rgba(255,122,60,0.5);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .attempt-btn:hover:not(:disabled){ transform: translateY(-2px); }
+  .attempt-btn:disabled{ opacity:0.35; cursor:not-allowed; box-shadow:none; }
+  .attempt-btn:focus-visible{ outline: 2px solid #fff; outline-offset:3px; }
+
+  /* earn + shop */
+  .side-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-top: 22px; }
+  @media (max-width:640px){ .side-grid{ grid-template-columns: 1fr; } }
+  .panel{ background: var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px 20px; }
+  .panel h3{ font-family:'Oswald',sans-serif; font-size:13px; text-transform:uppercase; letter-spacing:0.1em; color: var(--text-dim); margin:0 0 12px; }
+  .earn-btn{
+    width:100%; background: var(--surface-2); border:1px solid var(--line); color: var(--text);
+    padding:12px; border-radius:10px; font-weight:600; cursor:pointer; font-size:14px;
+    transition: border-color 0.2s;
+  }
+  .earn-btn:hover{ border-color: var(--gold); }
+  .earn-btn:focus-visible{ outline:2px solid var(--gold); }
+  .shop-row{ display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); font-size:13px; }
+  .shop-row:last-child{ border-bottom:none; }
+  .buy-btn{
+    background: rgba(232,200,122,0.12); border:1px solid var(--gold); color: var(--gold);
+    padding:5px 12px; border-radius:8px; font-size:12px; cursor:pointer; font-weight:600;
+  }
+  .buy-btn:hover{ background: rgba(232,200,122,0.22); }
+  .buy-btn:disabled{ opacity:0.3; cursor:not-allowed; }
+
+  /* log */
+  .log-panel{ margin-top:16px; }
+  .log{ max-height: 180px; overflow-y:auto; font-size:12.5px; display:flex; flex-direction:column-reverse; gap:6px; }
+  .log-entry{ padding:6px 10px; border-radius:8px; background: rgba(0,0,0,0.2); border-left:3px solid var(--line); }
+  .log-entry.success{ border-left-color: var(--safe); }
+  .log-entry.fail{ border-left-color: var(--danger); }
+  .log-entry .t{ color: var(--text-dim); margin-right:6px; }
+
+  .reset-row{ text-align:center; margin-top:26px; }
+  .reset-link{ color: var(--text-dim); font-size:12px; background:none; border:none; cursor:pointer; text-decoration:underline; text-underline-offset:3px; }
+  .reset-link:hover{ color: var(--danger); }
+
+  .buy-group{ display:flex; gap:6px; }
+
+  .gate-overlay{
+    position:fixed; inset:0; background: rgba(8,5,4,0.92); backdrop-filter: blur(4px);
+    display:flex; align-items:center; justify-content:center; z-index:100; padding:20px;
+  }
+  .gate-overlay.hidden{ display:none; }
+  .gate-box{
+    background: linear-gradient(180deg, var(--surface), var(--surface-2)); border:1px solid var(--line);
+    border-radius:18px; padding:32px 28px; max-width:380px; width:100%; text-align:center;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.7);
+  }
+  .gate-box h2{ font-family:'Cinzel',serif; font-size:22px; margin: 10px 0 8px; color: var(--text); }
+  .gate-box p{ font-size:13px; color: var(--text-dim); margin: 0 0 18px; line-height:1.5; }
+  .gate-box input{
+    width:100%; background: rgba(0,0,0,0.3); border:1px solid var(--line); color: var(--text);
+    padding:12px 14px; border-radius:10px; font-size:14px; margin-bottom:8px; text-align:center;
+  }
+  .gate-box input:focus{ outline: 2px solid var(--ember); border-color: var(--ember); }
+  .nickname-error{ color: var(--danger); font-size:12px; min-height:16px; margin-bottom:10px; }
+  .gate-box .attempt-btn{ width:100%; }
+
+  .leaderboard-table{ width:100%; border-collapse:collapse; font-size:13px; margin-top:4px; }
+  .leaderboard-table th{ text-align:left; color: var(--text-dim); font-family:'Oswald',sans-serif; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; padding:6px 8px; border-bottom:1px solid var(--line); }
+  .leaderboard-table td{ padding:7px 8px; border-bottom:1px solid var(--line); }
+  .leaderboard-table tr.me{ background: rgba(255,122,60,0.10); }
+  .leaderboard-table tr:last-child td{ border-bottom:none; }
+  .lb-status{ font-size:12px; color: var(--text-dim); margin: 8px 0; }
+  .lb-refresh{ margin-top:12px; }
+</style>
+</head>
+<body>
+<div id="nickname-gate" class="gate-overlay">
+  <div class="gate-box">
+    <div class="eyebrow">Кузница судьбы</div>
+    <h2>Представьтесь кузнецу</h2>
+    <p>Введите никнейм — под ним будет вестись ваш прогресс и запись в таблице лидеров. Приветствуем, «Друиды с пениесами»!</p>
+    <input type="text" id="nickname-input" maxlength="20" placeholder="Ваш никнейм" autocomplete="off">
+    <div id="nickname-error" class="nickname-error"></div>
+    <button class="attempt-btn" id="nickname-submit">Начать игру</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Кузница судьбы</div>
+    <h1>Заточка предмета</h1>
+    <div class="sub">Каждая попытка — риск. Выберите способ с умом. Кузнец: <b id="nickname-display" style="color:var(--gold);">—</b></div>
+    <div class="sub" style="margin-top:4px; opacity:0.8;">Сделано специально для «Друиды с пениесами»</div>
+  </header>
+
+  <div class="resources">
+    <div class="res-chip gold"><span class="ic">🪙</span><span class="amt" id="res-gold">0</span> золота</div>
+    <div class="res-chip stone"><span class="ic">🌫️</span><span class="amt" id="res-mirage">0</span> Мираж</div>
+    <div class="res-chip rare"><span class="ic">☁️</span><span class="amt" id="res-nebeska">0</span> Небеска</div>
+    <div class="res-chip scroll"><span class="ic">⛰️</span><span class="amt" id="res-podzemka">0</span> Подземка</div>
+    <div class="res-chip scroll"><span class="ic">✨</span><span class="amt" id="res-mirozdanie">0</span> Мироздание</div>
+  </div>
+
+  <div class="forge">
+    <div class="item-stage">
+      <div class="item-visual" id="item-visual"></div>
+      <div class="level-badge"><span class="plus">+</span><span id="level-num">0</span></div>
+      <div class="item-name">Клинок кузнеца</div>
+    </div>
+
+    <div id="max-note" class="max-note" style="display:none;">Максимальный уровень заточки достигнут.</div>
+
+    <div id="chance-block">
+      <div class="chance-row"><span class="val" id="chance-val">—%</span><span class="lbl">шанс успеха</span></div>
+      <div class="bar"><div class="bar-fill" id="chance-bar" style="width:0%"></div></div>
+
+      <div class="methods" id="methods"></div>
+
+      <button class="attempt-btn" id="attempt-btn">Улучшить</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Лавка свитков</h3>
+    <div class="shop-row">
+      <span>☁️ Небеска — 0.45 🪙 / шт</span>
+      <span class="buy-group">
+        <button class="buy-btn" data-buy="nebeska" data-qty="1">×1</button>
+        <button class="buy-btn" data-buy="nebeska" data-qty="10">×10 (4.5 🪙)</button>
+      </span>
+    </div>
+    <div class="shop-row">
+      <span>⛰️ Подземка — 0.45 🪙 / шт</span>
+      <span class="buy-group">
+        <button class="buy-btn" data-buy="podzemka" data-qty="1">×1</button>
+        <button class="buy-btn" data-buy="podzemka" data-qty="10">×10 (4.5 🪙)</button>
+      </span>
+    </div>
+    <div class="shop-row">
+      <span>✨ Мироздание — 0.45 🪙 / шт</span>
+      <span class="buy-group">
+        <button class="buy-btn" data-buy="mirozdanie" data-qty="1">×1</button>
+        <button class="buy-btn" data-buy="mirozdanie" data-qty="10">×10 (4.5 🪙)</button>
+      </span>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:16px;">
+    <h3>Ежедневное пополнение</h3>
+    <div class="shop-row">
+      <span>В полночь (по времени вашего устройства) золото пополняется на 1000, а Мираж — на 2000. Потрачено всего: <b id="gold-spent">0</b> 🪙, <b id="mirage-spent">0</b> 🌫️.</span>
+    </div>
+  </div>
+
+  <div class="panel log-panel">
+    <h3>Журнал кузницы</h3>
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="panel" style="margin-top:16px;">
+    <h3>Таблица лидеров</h3>
+    <div class="lb-status" id="lb-status">Загрузка…</div>
+    <table class="leaderboard-table" id="leaderboard-table" style="display:none;">
+      <thead><tr><th>#</th><th>Никнейм</th><th>Макс. уровень</th><th>Мираж потрачено</th><th>Золото потрачено</th></tr></thead>
+      <tbody id="leaderboard-body"></tbody>
+    </table>
+    <button class="earn-btn lb-refresh" id="leaderboard-refresh">Обновить таблицу</button>
+  </div>
+
+  <div class="reset-row">
+    <button class="reset-link" id="reset-btn">Начать заново (сбросить весь прогресс)</button>
+  </div>
+</div>
+
+<script>
+// ====== FIREBASE CONFIG ======
+// Вставьте сюда данные вашего проекта Firebase (Project settings → General → Your apps → SDK setup).
+// Пока значения не заполнены, игра работает локально, а таблица лидеров покажет статус "не настроено".
+const firebaseConfig = {
+  apiKey: "AIzaSyDGnkCIJc_UsWXLPUZeC1asbk_dz64IfKc",
+  authDomain: "druids-with-pensils.firebaseapp.com",
+  projectId: "druids-with-pensils",
+  storageBucket: "druids-with-pensils.firebasestorage.app",
+  messagingSenderId: "391526196059",
+  appId: "1:391526196059:web:9b8a6bbfcb5a64c275f07e"
+};
+let db = null;
+let firebaseReady = false;
+try{
+  if(firebaseConfig.apiKey !== "ВСТАВЬТЕ_СЮДА"){
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    firebaseReady = true;
+  }
+}catch(e){ console.warn('Firebase init failed', e); }
+
+(function(){
+  const SAVE_KEY = 'forge_game_save_v3';
+  const MAX_LEVEL = 12;
+
+  // chance tables, indexed by current level (0..11), values are % straight from the reference table
+  const CHANCE = {
+    mirage:     [50,30,30,30,30,30,30,30,25,20,12,5],
+    nebeska:    [65,45,45,45,45,45,45,45,40,35,27,20],
+    podzemka:   [53.5,33.5,33.5,33.5,33.5,33.5,33.5,33.5,28.5,23.5,15.5,8.5],
+    mirozdanie: [100,25,10,4,1.67,0.77,0.47,0.25,0.13,0.07,0.04,0.02],
+  };
+
+  const METHODS = {
+    mirage:     { name:'Только Мираж',       tag:'standard', table:'mirage',     fail:'reset',     extra:null },
+    nebeska:    { name:'Мираж + Небеска',    tag:'risky',    table:'nebeska',    fail:'reset',     extra:'nebeska' },
+    podzemka:   { name:'Мираж + Подземка',   tag:'safe',     table:'podzemka',   fail:'downgrade', extra:'podzemka' },
+    mirozdanie: { name:'Мираж + Мироздание', tag:'extreme',  table:'mirozdanie', fail:'none',      extra:'mirozdanie' },
+  };
+  const FAIL_DESC = {
+    reset: 'Провал: заточка полностью обнуляется.',
+    downgrade: 'Провал: уровень снижается на 1.',
+    none: 'Провал: уровень не меняется, ресурсы теряются.',
+  };
+  const EXTRA_LABEL = { nebeska:'☁️ Небеска', podzemka:'⛰️ Подземка', mirozdanie:'✨ Мироздание' };
+
+  let state = null;
+
+  function defaultState(){
+    return { nickname:null, level:0, maxLevel:0, gold:1000, mirage:2000, nebeska:0, podzemka:0, mirozdanie:0, mirageSpent:0, goldSpent:0, method:'mirage', lastRefill:null, log:[] };
+  }
+
+  function todayStr(){
+    const d = new Date();
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  }
+
+  function checkDailyRefill(){
+    const today = todayStr();
+    if(state.lastRefill !== today){
+      if(state.lastRefill){
+        state.gold += 1000;
+        state.mirage += 2000;
+        addLog('Ежедневное пополнение: +1000 🪙 и +2000 🌫️ Мираж.', '');
+      }
+      state.lastRefill = today;
+      save();
+      return true;
+    }
+    return false;
+  }
+
+  function load(){
+    try{
+      const raw = localStorage.getItem(SAVE_KEY);
+      if(raw) state = JSON.parse(raw);
+    }catch(e){ /* ignore corrupted save */ }
+    if(!state) state = defaultState();
+  }
+  function save(){
+    try{ localStorage.setItem(SAVE_KEY, JSON.stringify(state)); }catch(e){}
+  }
+
+  function chanceFor(level, methodKey){
+    return CHANCE[METHODS[methodKey].table][level];
+  }
+
+  function addLog(text, cls){
+    const time = new Date().toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'});
+    state.log.unshift({ text, cls, time });
+    state.log = state.log.slice(0, 40);
+  }
+
+  // ---------- rendering ----------
+  function itemSVG(level){
+    // tiered look: 0-3 dull steel, 4-7 warm ember, 8-10 bright gold, 11-12 radiant
+    let stroke = '#5b6b73', fill='#2a3236', glow='transparent';
+    if(level>=4 && level<=7){ stroke='#d9793f'; fill='#3a2418'; glow='#c9612a'; }
+    else if(level>=8 && level<=10){ stroke='#ffb15c'; fill='#4a2c10'; glow='#ff9433'; }
+    else if(level>=11){ stroke='#ffe9b0'; fill='#5a3a12'; glow='#ffcf6b'; }
+    document.getElementById('item-visual').style.setProperty('--glow-color', glow);
+    return `<svg viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="50,4 62,40 50,50 38,40" fill="${fill}" stroke="${stroke}" stroke-width="3" stroke-linejoin="round"/>
+      <rect x="46" y="48" width="8" height="60" fill="${fill}" stroke="${stroke}" stroke-width="3"/>
+      <rect x="30" y="104" width="40" height="10" rx="3" fill="${fill}" stroke="${stroke}" stroke-width="3"/>
+      <rect x="44" y="112" width="12" height="22" rx="4" fill="${fill}" stroke="${stroke}" stroke-width="3"/>
+      ${level>=8 ? `<circle cx="50" cy="30" r="4" fill="${stroke}"/>` : ''}
+    </svg>`;
+  }
+
+  function render(){
+    document.getElementById('nickname-display').textContent = state.nickname || '—';
+    document.getElementById('res-gold').textContent = state.gold.toFixed(2).replace(/\.00$/,'');
+    document.getElementById('res-mirage').textContent = state.mirage;
+    document.getElementById('res-nebeska').textContent = state.nebeska;
+    document.getElementById('res-podzemka').textContent = state.podzemka;
+    document.getElementById('res-mirozdanie').textContent = state.mirozdanie;
+    document.getElementById('mirage-spent').textContent = state.mirageSpent;
+    document.getElementById('gold-spent').textContent = state.goldSpent.toFixed(2).replace(/\.00$/,'');
+    document.getElementById('level-num').textContent = state.level;
+    document.getElementById('item-visual').innerHTML = itemSVG(state.level);
+
+    const maxed = state.level >= MAX_LEVEL;
+    document.getElementById('max-note').style.display = maxed ? 'block' : 'none';
+    document.getElementById('chance-block').style.display = maxed ? 'none' : 'block';
+    if(maxed){ save(); renderLog(); return; }
+
+    renderMethods();
+    updateChanceDisplay();
+    renderLog();
+    save();
+  }
+
+  function renderMethods(){
+    const wrap = document.getElementById('methods');
+    wrap.innerHTML = '';
+    Object.keys(METHODS).forEach(key=>{
+      const m = METHODS[key];
+      const chance = chanceFor(state.level, key);
+      const div = document.createElement('div');
+      div.className = 'method' + (state.method===key ? ' selected' : '');
+      div.tabIndex = 0;
+      div.setAttribute('role','button');
+      div.dataset.key = key;
+      const extraCostHtml = m.extra ? `<span>${EXTRA_LABEL[m.extra]} 1 шт</span>` : '';
+      div.innerHTML = `
+        <div class="m-name">${m.name} <span class="m-tag ${m.tag}">${chance}%</span></div>
+        <div class="m-desc">${FAIL_DESC[m.fail]}</div>
+        <div class="m-cost"><span>🌫️ 2 Мираж</span>${extraCostHtml}</div>
+      `;
+      div.addEventListener('click', ()=> selectMethod(key));
+      div.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); selectMethod(key); } });
+      wrap.appendChild(div);
+    });
+  }
+
+  function selectMethod(key){
+    state.method = key;
+    render();
+  }
+
+  function updateChanceDisplay(){
+    const c = chanceFor(state.level, state.method);
+    document.getElementById('chance-val').textContent = c + '%';
+    document.getElementById('chance-bar').style.width = Math.min(100,c) + '%';
+
+    const m = METHODS[state.method];
+    const hasMirage = state.mirage >= 2;
+    const hasExtra = !m.extra || state[m.extra] >= 1;
+    const btn = document.getElementById('attempt-btn');
+    btn.disabled = !(hasMirage && hasExtra);
+  }
+
+  function renderLog(){
+    const el = document.getElementById('log');
+    if(state.log.length===0){
+      el.innerHTML = '<div class="log-entry"><span class="t">—</span>Журнал пуст. Начните ковать.</div>';
+      return;
+    }
+    el.innerHTML = state.log.map(e=>`<div class="log-entry ${e.cls}"><span class="t">${e.time}</span>${e.text}</div>`).join('');
+  }
+
+  // ---------- actions ----------
+  function attemptEnhance(){
+    const key = state.method;
+    const m = METHODS[key];
+
+    if(state.mirage < 2) return;
+    if(m.extra && state[m.extra] < 1) return;
+
+    state.mirage -= 2;
+    state.mirageSpent += 2;
+    if(m.extra) state[m.extra] -= 1;
+
+    const chance = chanceFor(state.level, key);
+    const roll = Math.random()*100;
+    const visual = document.getElementById('item-visual');
+
+    if(roll <= chance){
+      state.level = Math.min(MAX_LEVEL, state.level+1);
+      state.maxLevel = Math.max(state.maxLevel||0, state.level);
+      addLog(`Успех! Заточка улучшена до <b>+${state.level}</b> (${m.name.toLowerCase()}, шанс ${chance}%).`, 'success');
+      visual.classList.remove('crack','shatter'); void visual.offsetWidth; visual.classList.add('pulse');
+      setTimeout(()=>visual.classList.remove('pulse'), 700);
+    } else if(m.fail === 'none'){
+      addLog(`Провал (${m.name.toLowerCase()}, шанс был ${chance}%). Мироздание удержало уровень — заточка не изменилась.`, 'fail');
+      visual.classList.remove('pulse','shatter'); void visual.offsetWidth; visual.classList.add('crack');
+      setTimeout(()=>visual.classList.remove('crack'), 450);
+    } else if(m.fail === 'downgrade'){
+      const before = state.level;
+      state.level = Math.max(0, state.level-1);
+      addLog(`Провал (${m.name.toLowerCase()}, шанс был ${chance}%). Уровень упал с +${before} до +${state.level}.`, 'fail');
+      visual.classList.remove('pulse','shatter'); void visual.offsetWidth; visual.classList.add('crack');
+      setTimeout(()=>visual.classList.remove('crack'), 450);
+    } else if(m.fail === 'reset'){
+      addLog(`Провал (${m.name.toLowerCase()}, шанс был ${chance}%). Заточка полностью обнулена.`, 'fail');
+      visual.classList.remove('pulse','crack'); void visual.offsetWidth; visual.classList.add('shatter');
+      setTimeout(()=>{ state.level = 0; visual.classList.remove('shatter'); render(); }, 500);
+      save(); renderLog(); render();
+      syncLeaderboard();
+      return;
+    }
+    render();
+    syncLeaderboard();
+  }
+
+  const SHOP = { nebeska:{label:'Небеска'}, podzemka:{label:'Подземка'}, mirozdanie:{label:'Мироздание'} };
+  const UNIT_COST = 0.45;
+  function buy(key, qty){
+    const item = SHOP[key];
+    const cost = Math.round(UNIT_COST*qty*100)/100;
+    if(state.gold < cost) return;
+    state.gold = Math.round((state.gold - cost) * 100) / 100;
+    state.goldSpent = Math.round((state.goldSpent + cost) * 100) / 100;
+    state[key] += qty;
+    addLog(`Куплено: ${qty}× ${item.label} за ${cost} 🪙.`, '');
+    render();
+    syncLeaderboard();
+  }
+
+  function resetAll(){
+    if(!confirm('Точно сбросить весь прогресс? Это необратимо.')) return;
+    const keepNickname = state.nickname;
+    state = defaultState();
+    state.nickname = keepNickname;
+    state.lastRefill = todayStr();
+    save();
+    render();
+  }
+
+  // ---------- nickname gate ----------
+  function showGate(){ document.getElementById('nickname-gate').classList.remove('hidden'); }
+  function hideGate(){ document.getElementById('nickname-gate').classList.add('hidden'); }
+
+  function submitNickname(){
+    const input = document.getElementById('nickname-input');
+    const name = input.value.trim();
+    const errEl = document.getElementById('nickname-error');
+    if(name.length < 2){
+      errEl.textContent = 'Никнейм должен содержать хотя бы 2 символа.';
+      return;
+    }
+    state.nickname = name.slice(0, 20);
+    state.lastRefill = todayStr();
+    save();
+    hideGate();
+    render();
+    syncLeaderboard();
+    loadLeaderboard();
+  }
+
+  // ---------- leaderboard (Firebase Firestore) ----------
+  async function syncLeaderboard(){
+    if(!firebaseReady || !state.nickname) return;
+    try{
+      await db.collection('leaderboard').doc(state.nickname).set({
+        nickname: state.nickname,
+        maxLevel: state.maxLevel||0,
+        mirageSpent: state.mirageSpent,
+        goldSpent: state.goldSpent,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }catch(e){ console.warn('Leaderboard sync failed', e); }
+  }
+
+  async function loadLeaderboard(){
+    const statusEl = document.getElementById('lb-status');
+    const tableEl = document.getElementById('leaderboard-table');
+    if(!firebaseReady){
+      statusEl.textContent = 'Таблица лидеров не настроена: впишите ключи Firebase в файл игры, чтобы включить общий рейтинг.';
+      tableEl.style.display = 'none';
+      return;
+    }
+    statusEl.textContent = 'Загрузка…';
+    try{
+      const snap = await db.collection('leaderboard').orderBy('maxLevel','desc').limit(50).get();
+      let rows = [];
+      snap.forEach(doc=> rows.push(doc.data()));
+      rows.sort((a,b)=> (b.maxLevel||0)-(a.maxLevel||0) || (a.mirageSpent||0)-(b.mirageSpent||0));
+      rows = rows.slice(0,20);
+      renderLeaderboard(rows);
+      statusEl.textContent = '';
+    }catch(e){
+      console.warn('Leaderboard load failed', e);
+      statusEl.textContent = 'Не удалось загрузить таблицу лидеров. Проверьте настройки Firebase.';
+      tableEl.style.display = 'none';
+    }
+  }
+
+  function renderLeaderboard(rows){
+    const tableEl = document.getElementById('leaderboard-table');
+    const body = document.getElementById('leaderboard-body');
+    if(rows.length===0){
+      document.getElementById('lb-status').textContent = 'Пока никто не улучшил заточку. Будьте первым!';
+      tableEl.style.display = 'none';
+      return;
+    }
+    tableEl.style.display = 'table';
+    body.innerHTML = rows.map((r,i)=>`
+      <tr class="${r.nickname===state.nickname ? 'me' : ''}">
+        <td>${i+1}</td>
+        <td>${escapeHtml(r.nickname)}</td>
+        <td>+${r.maxLevel||0}</td>
+        <td>${r.mirageSpent||0}</td>
+        <td>${(r.goldSpent||0).toFixed(2)}</td>
+      </tr>
+    `).join('');
+  }
+
+  function escapeHtml(s){
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  // ---------- wiring ----------
+  document.getElementById('attempt-btn').addEventListener('click', attemptEnhance);
+  document.getElementById('reset-btn').addEventListener('click', resetAll);
+  document.getElementById('nickname-submit').addEventListener('click', submitNickname);
+  document.getElementById('nickname-input').addEventListener('keydown', e=>{ if(e.key==='Enter') submitNickname(); });
+  document.getElementById('leaderboard-refresh').addEventListener('click', loadLeaderboard);
+  document.querySelectorAll('.buy-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> buy(btn.dataset.buy, parseInt(btn.dataset.qty, 10)));
+  });
+
+  load();
+  if(state.nickname){
+    checkDailyRefill();
+    hideGate();
+  } else {
+    showGate();
+  }
+  render();
+  loadLeaderboard();
+  // catch midnight rollover if the tab stays open
+  setInterval(()=>{ if(state.nickname && checkDailyRefill()) render(); }, 60000);
+})();
+</script>
+</body>
+</html>
